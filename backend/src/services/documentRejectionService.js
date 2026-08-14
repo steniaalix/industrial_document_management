@@ -69,11 +69,16 @@ class DocumentRejectionService {
       throw err;
     }
 
-    // 3. Verify user exists
-    const userEx = await this.userExists(rejectedBy);
-    if (!userEx) {
+    // 3. Verify user exists and check their role
+    const [userRows] = await pool.query('SELECT role FROM users WHERE user_id = ?', [rejectedBy]);
+    if (userRows.length === 0) {
       const err = new Error(`User with ID ${rejectedBy} not found`);
       err.status = 404;
+      throw err;
+    }
+    if (userRows[0].role !== 'REVIEWER') {
+      const err = new Error('Only REVIEWER users can reject documents');
+      err.status = 403;
       throw err;
     }
 

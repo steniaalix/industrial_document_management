@@ -28,6 +28,14 @@ class DocumentReviewService {
       throw err;
     }
 
+    // Check that at least one document version exists
+    const [versionCountRows] = await pool.query('SELECT COUNT(*) AS count FROM document_versions WHERE doc_id = ?', [docId]);
+    if (versionCountRows[0].count === 0) {
+      const err = new Error('A document version must be uploaded before submitting for review');
+      err.status = 400;
+      throw err;
+    }
+
     // 3. For REJECTED documents, ensure a new version has been uploaded since the last rejection
     if (currentStatus === 'REJECTED') {
       const [versionRows] = await pool.query(

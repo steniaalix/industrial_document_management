@@ -38,6 +38,14 @@ class DocumentApprovalService {
       throw err;
     }
 
+    // Verify that at least one document version exists
+    const [versionCountRows] = await pool.query('SELECT COUNT(*) AS count FROM document_versions WHERE doc_id = ?', [docId]);
+    if (versionCountRows[0].count === 0) {
+      const err = new Error('A document version must exist before the document can be approved');
+      err.status = 400;
+      throw err;
+    }
+
     // 3. Atomically perform status transition (UNDER_REVIEW -> APPROVED -> ARCHIVED)
     const connection = await pool.getConnection();
     try {

@@ -550,7 +550,7 @@ function App() {
                               width: '20px', 
                               height: '20px', 
                               borderRadius: '50%', 
-                              backgroundColor: 'rgba(99, 102, 241, 0.2)', 
+                              backgroundColor: 'var(--accent-glow)', 
                               color: 'var(--accent-primary)',
                               fontSize: '0.65rem'
                             }}>
@@ -658,8 +658,8 @@ function App() {
                         width: '20px', 
                         height: '20px', 
                         borderRadius: '50%', 
-                        backgroundColor: 'rgba(99, 102, 241, 0.2)', 
-                        color: 'var(--accent-primary)',
+                        backgroundColor: 'var(--bg-tertiary)', 
+                        color: 'var(--text-primary)',
                         fontSize: '0.65rem'
                       }}>
                         AI
@@ -1772,7 +1772,7 @@ function App() {
   if (!currentUser) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: 'var(--bg-primary)', padding: '20px' }}>
-        <div className="section-card" style={{ maxWidth: '400px', width: '100%', padding: '40px 30px', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)', border: '1px solid var(--border-color)' }}>
+        <div className="section-card" style={{ maxWidth: '400px', width: '100%', padding: '40px 30px', boxShadow: 'var(--shadow-md)', border: '1px solid var(--border-color)' }}>
           <div style={{ textAlign: 'center', marginBottom: '32px' }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: 'var(--accent-primary)', marginBottom: '12px' }}>
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -4136,8 +4136,7 @@ function App() {
           left: 0,
           width: '100%',
           height: '100%',
-          backgroundColor: 'rgba(11, 13, 25, 0.85)',
-          backdropFilter: 'blur(8px)',
+          backgroundColor: 'rgba(23, 33, 43, 0.5)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -4260,8 +4259,7 @@ function App() {
           left: 0,
           width: '100%',
           height: '100%',
-          backgroundColor: 'rgba(11, 13, 25, 0.85)',
-          backdropFilter: 'blur(8px)',
+          backgroundColor: 'rgba(23, 33, 43, 0.5)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -4366,8 +4364,7 @@ function App() {
           left: 0,
           width: '100%',
           height: '100%',
-          backgroundColor: 'rgba(11, 13, 25, 0.85)',
-          backdropFilter: 'blur(8px)',
+          backgroundColor: 'rgba(23, 33, 43, 0.5)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

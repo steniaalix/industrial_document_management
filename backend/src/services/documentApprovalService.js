@@ -46,7 +46,7 @@ class DocumentApprovalService {
       throw err;
     }
 
-    // 3. Atomically perform status transition (UNDER_REVIEW -> APPROVED -> ARCHIVED)
+    // 3. Atomically perform status transition (UNDER_REVIEW -> APPROVED -> ARCHIVED) and mark version as approved
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
@@ -57,7 +57,35 @@ class DocumentApprovalService {
       // Transition 2: APPROVED -> ARCHIVED
       await connection.query("UPDATE documents SET status = 'ARCHIVED' WHERE doc_id = ?", [docId]);
 
+      // Find the latest version of the document
+      const [versions] = await connection.query(
+        "SELECT version_id FROM document_versions WHERE doc_id = ? ORDER BY version_number DESC LIMIT 1",
+        [docId]
+      );
+      if (versions.length > 0) {
+        // Mark version as approved
+        await connection.query(
+          "UPDATE document_versions SET approved_at = CURRENT_TIMESTAMP WHERE version_id = ?",
+          [versions[0].version_id]
+        );
+      }
+
       await connection.commit();
+
+      // Trigger automatic background RAG synchronization
+      const aiBackendUrl = process.env.AI_BACKEND_URL || 'http://127.0.0.1:8001';
+      fetch(`${aiBackendUrl}/api/ai/ingest/${docId}`, { method: 'POST' })
+        .then(res => {
+          if (!res.ok) {
+            console.error(`Automatic RAG synchronization failed with status ${res.status} for docId ${docId}`);
+          } else {
+            console.log(`Automatic RAG synchronization successful for docId ${docId}`);
+          }
+        })
+        .catch(err => {
+          console.error(`Automatic RAG synchronization failed for docId ${docId}:`, err.message);
+        });
+
     } catch (error) {
       await connection.rollback();
       throw error;

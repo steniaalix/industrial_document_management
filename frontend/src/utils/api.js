@@ -534,3 +534,26 @@ export async function deleteDepartment(id) {
 
   return payload.data;
 }
+
+/**
+ * Utility to ask a question to the AI service backend.
+ * @param {string} question - The question query.
+ * @returns {Promise<object>} The Q&A response containing answer and sources.
+ */
+export async function askAI(question) {
+  const response = await fetch('http://127.0.0.1:8001/api/ai/ask', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ question })
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.detail || `AI query failed: ${response.status} ${response.statusText}`);
+  }
+
+  return result;
+}

@@ -50,6 +50,9 @@ class DocumentVersionService {
     `;
 
     try {
+      // Automatically transition document status back to DRAFT upon new version upload
+      await pool.query("UPDATE documents SET status = 'DRAFT' WHERE doc_id = ?", [docId]);
+
       const [result] = await pool.query(insertQuery, [
         docId,
         nextVersionNumber,

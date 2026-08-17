@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   fetchDocuments, 
   fetchDocumentById, 
@@ -23,7 +23,8 @@ import {
   fetchDepartmentById,
   createDepartment,
   updateDepartment,
-  deleteDepartment
+  deleteDepartment,
+  askAI
 } from './utils/api';
 import './App.css';
 
@@ -357,6 +358,403 @@ function App() {
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState(null);
   const [createSuccessMessage, setCreateSuccessMessage] = useState(null);
+
+  // AI Assistant states
+  const [chatMessages, setChatMessages] = useState([
+    {
+      sender: 'ai',
+      text: 'Hello! I am your InduDocs AI Assistant. I can help you search, summarize, and understand industrial procedures, safety policies, or specifications stored in the document repository. What would you like to ask today?',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }
+  ]);
+  const [aiQuestion, setAiQuestion] = useState('');
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(null);
+  
+  // AI Ingestion states (Admin only)
+  const [ingestDocId, setIngestDocId] = useState('');
+  const [isIngesting, setIsIngesting] = useState(false);
+  const [ingestResult, setIngestResult] = useState(null);
+  const [ingestError, setIngestError] = useState(null);
+
+  // Chat scroll anchor ref
+  const messagesEndRef = useRef(null);
+
+  // Scroll to bottom helper
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages, isAiLoading]);
+
+  // Ask AI handler (Conversational Thread)
+  const handleAskAI = async (e) => {
+    if (e) e.preventDefault();
+    const questionText = aiQuestion.trim();
+    if (!questionText) return;
+
+    // 1. Add user message
+    const userMsg = {
+      sender: 'user',
+      text: questionText,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    setChatMessages(prev => [...prev, userMsg]);
+    setAiQuestion('');
+    setIsAiLoading(true);
+    setAiError(null);
+
+    try {
+      // 2. Fetch answer using askAI utility
+      const data = await askAI(questionText);
+      const aiMsg = {
+        sender: 'ai',
+        text: data.answer,
+        sources: data.sources || [],
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setChatMessages(prev => [...prev, aiMsg]);
+    } catch (err) {
+      console.error('AI Ask Error:', err);
+      setAiError(err.message || 'Could not connect to the AI backend.');
+      
+      const errorMsg = {
+        sender: 'ai',
+        text: `Error: ${err.message || 'Could not connect to the AI backend. Please verify it is running on port 8001.'}`,
+        isError: true,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setChatMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  // Clear Chat history handler
+  const handleClearChat = () => {
+    setChatMessages([
+      {
+        sender: 'ai',
+        text: 'Hello! I am your InduDocs AI Assistant. I can help you search, summarize, and understand industrial procedures, safety policies, or specifications stored in the document repository. What would you like to ask today?',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    ]);
+    setAiQuestion('');
+    setAiError(null);
+  };
+
+  // Ingest Document handler
+  const handleIngestDocument = async (e) => {
+    if (e) e.preventDefault();
+    if (!ingestDocId) return;
+
+    try {
+      setIsIngesting(true);
+      setIngestError(null);
+      setIngestResult(null);
+
+      // Using correct port 8001 for AI service backend
+      const response = await fetch(`http://127.0.0.1:8001/api/ai/ingest/${ingestDocId}`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || 'Failed to ingest document.');
+      }
+
+      const data = await response.json();
+      if (data.already_ingested) {
+        setIngestResult(`Document #${ingestDocId} is already indexed (${data.chunks_created} chunks).`);
+      } else {
+        setIngestResult(`Successfully ingested Document #${ingestDocId} (${data.chunks_created} chunks created).`);
+      }
+    } catch (err) {
+      console.error('AI Ingestion Error:', err);
+      setIngestError(err.message || 'Could not connect to the AI backend. Please verify it is running on port 8001.');
+    } finally {
+      setIsIngesting(false);
+    }
+  };
+
+  // Helper component to render the AI Assistant
+  const renderAIAssistant = () => {
+    return (
+      <div className="section-card" style={{ animation: 'fadeIn 0.3s ease-out', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Header */}
+        <div className="section-header" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h2 style={{ fontSize: '1.6rem', color: 'var(--text-primary)' }}>Industrial Document AI Assistant</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '4px' }}>
+              Interact with the plant documentation repository to search procedures, analyze manuals, and retrieve safety guidelines.
+            </p>
+          </div>
+          <button 
+            type="button" 
+            className="btn btn-secondary"
+            onClick={handleClearChat}
+            disabled={isAiLoading || chatMessages.length <= 1}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '0.85rem' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              <line x1="10" y1="11" x2="10" y2="17" />
+              <line x1="14" y1="11" x2="14" y2="17" />
+            </svg>
+            Clear Chat
+          </button>
+        </div>
+
+        {/* Layout Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px' }}>
+          
+          {/* Conversational Chat Column */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '20px' }}>
+            
+            {/* Scrollable Conversation Stream */}
+            <div style={{ 
+              height: '420px', 
+              overflowY: 'auto', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '16px', 
+              paddingRight: '8px'
+            }}>
+              {chatMessages.map((msg, index) => {
+                const isAI = msg.sender === 'ai';
+                return (
+                  <div 
+                    key={index} 
+                    style={{ 
+                      display: 'flex', 
+                      justifyContent: isAI ? 'flex-start' : 'flex-end', 
+                      width: '100%',
+                      animation: 'fadeIn 0.2s ease-out'
+                    }}
+                  >
+                    <div style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      alignItems: isAI ? 'flex-start' : 'flex-end',
+                      maxWidth: isAI ? '85%' : '70%'
+                    }}>
+                      {/* Avatar & Sender tag */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: '600' }}>
+                        {isAI ? (
+                          <>
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center', 
+                              width: '20px', 
+                              height: '20px', 
+                              borderRadius: '50%', 
+                              backgroundColor: 'rgba(99, 102, 241, 0.2)', 
+                              color: 'var(--accent-primary)',
+                              fontSize: '0.65rem'
+                            }}>
+                              AI
+                            </div>
+                            <span>InduDocs AI</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>{currentUser.name}</span>
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center', 
+                              width: '20px', 
+                              height: '20px', 
+                              borderRadius: '50%', 
+                              backgroundColor: 'var(--bg-tertiary)', 
+                              color: 'var(--text-primary)',
+                              fontSize: '0.65rem'
+                            }}>
+                              U
+                            </div>
+                          </>
+                        )}
+                        <span style={{ color: 'var(--text-muted)', fontWeight: 'normal' }}>· {msg.timestamp}</span>
+                      </div>
+
+                      {/* Bubble */}
+                      <div style={{ 
+                        backgroundColor: isAI ? (msg.isError ? 'var(--danger-glow)' : 'var(--bg-tertiary)') : 'var(--accent-primary)', 
+                        color: 'var(--text-primary)', 
+                        border: isAI ? `1px solid ${msg.isError ? 'var(--danger)' : 'var(--border-color)'}` : 'none', 
+                        borderRadius: 'var(--radius-md)', 
+                        padding: '12px 16px', 
+                        fontSize: '0.92rem', 
+                        lineHeight: '1.55', 
+                        whiteSpace: 'pre-wrap',
+                        boxShadow: 'var(--shadow-sm)'
+                      }}>
+                        {msg.text}
+                      </div>
+
+                      {/* Sources Citation cards if present */}
+                      {isAI && msg.sources && msg.sources.length > 0 && (
+                        <div style={{ marginTop: '12px', width: '100%' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                            </svg>
+                            Verified Sources
+                          </span>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px' }}>
+                            {msg.sources.map((source, sIdx) => (
+                              <div 
+                                key={sIdx} 
+                                style={{ 
+                                  backgroundColor: 'var(--bg-primary)', 
+                                  border: '1px solid var(--border-color)', 
+                                  borderRadius: 'var(--radius-sm)', 
+                                  padding: '8px 10px',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '4px',
+                                  fontSize: '0.8rem',
+                                  transition: 'border-color var(--transition-fast)'
+                                }}
+                                onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--accent-primary)'}
+                                onMouseOut={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
+                              >
+                                <div style={{ fontWeight: '600', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {source.document_title || source.file_name}
+                                </div>
+                                <div style={{ color: 'var(--text-secondary)', fontSize: '0.72rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  File: {source.file_name} · V{source.version_number}
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+                                  <span style={{ fontSize: '0.68rem', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
+                                    {source.category_name || 'Procedure'}
+                                  </span>
+                                  <span style={{ fontSize: '0.68rem', backgroundColor: 'var(--accent-glow)', color: 'var(--accent-primary)', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>
+                                    Page {source.page}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Typing loader bubble */}
+              {isAiLoading && (
+                <div style={{ display: 'flex', justifyContent: 'flex-start', width: '100%', animation: 'fadeIn 0.2s ease-out' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', maxWidth: '85%' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: '600' }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        width: '20px', 
+                        height: '20px', 
+                        borderRadius: '50%', 
+                        backgroundColor: 'rgba(99, 102, 241, 0.2)', 
+                        color: 'var(--accent-primary)',
+                        fontSize: '0.65rem'
+                      }}>
+                        AI
+                      </div>
+                      <span>InduDocs AI</span>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 'normal' }}>· typing...</span>
+                    </div>
+                    <div style={{ 
+                      backgroundColor: 'var(--bg-tertiary)', 
+                      color: 'var(--text-primary)', 
+                      border: '1px solid var(--border-color)', 
+                      borderRadius: 'var(--radius-md)', 
+                      padding: '12px 16px', 
+                      fontSize: '0.92rem', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '8px'
+                    }}>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <div className="dot" style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--text-secondary)', animation: 'bounce 1.4s infinite ease-in-out both' }}></div>
+                        <div className="dot" style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--text-secondary)', animation: 'bounce 1.4s infinite ease-in-out both', animationDelay: '0.2s' }}></div>
+                        <div className="dot" style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--text-secondary)', animation: 'bounce 1.4s infinite ease-in-out both', animationDelay: '0.4s' }}></div>
+                      </div>
+                      <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Retrieving knowledge and formatting response...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Scroll Anchor */}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input form */}
+            <form onSubmit={handleAskAI} style={{ display: 'flex', gap: '10px', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: '8px' }}>
+              <input 
+                type="text"
+                placeholder="Ask about plant regulations, machinery steps, or safety guidelines..."
+                value={aiQuestion}
+                onChange={(e) => setAiQuestion(e.target.value)}
+                disabled={isAiLoading}
+                style={{ 
+                  flex: 1,
+                  backgroundColor: 'var(--bg-primary)', 
+                  border: '1px solid var(--border-color)', 
+                  borderRadius: 'var(--radius-sm)', 
+                  padding: '12px 14px', 
+                  color: 'var(--text-primary)', 
+                  outline: 'none', 
+                  fontSize: '0.9rem',
+                  transition: 'border-color var(--transition-fast)'
+                }}
+                onFocus={(e) => e.currentTarget.style.borderColor = 'var(--border-focus)'}
+                onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
+              />
+              
+              <button 
+                type="submit" 
+                className="btn btn-primary" 
+                disabled={isAiLoading || !aiQuestion.trim()}
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px', 
+                  padding: '12px 20px', 
+                  fontSize: '0.9rem',
+                  fontWeight: '600',
+                  height: '46px',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+                Send
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {/* CSS Animation rules */}
+        <style>{`
+          @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
+          }
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  };
 
   // Load all documents from the backend on component mount
   const loadDocumentsList = async () => {
@@ -1554,6 +1952,24 @@ function App() {
                 <span>Departments</span>
               </button>
             </li>
+            <li>
+              <button 
+                className={`sidebar-item-btn ${currentView === 'ai_assistant' ? 'active' : ''}`}
+                onClick={() => {
+                  setCurrentView('ai_assistant');
+                  setSelectedDocId(null);
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="10" rx="2" />
+                  <circle cx="12" cy="5" r="2" />
+                  <path d="M12 7v4" />
+                  <line x1="8" y1="16" x2="8" y2="16" />
+                  <line x1="16" y1="16" x2="16" y2="16" />
+                </svg>
+                <span>AI Assistant</span>
+              </button>
+            </li>
           </ul>
         ) : (
           <ul className="sidebar-menu">
@@ -1587,6 +2003,24 @@ function App() {
                   <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
                 </svg>
                 <span>Documents</span>
+              </button>
+            </li>
+            <li>
+              <button 
+                className={`sidebar-item-btn ${currentView === 'ai_assistant' && selectedDocId === null ? 'active' : ''}`}
+                onClick={() => {
+                  setCurrentView('ai_assistant');
+                  setSelectedDocId(null);
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="10" rx="2" />
+                  <circle cx="12" cy="5" r="2" />
+                  <path d="M12 7v4" />
+                  <line x1="8" y1="16" x2="8" y2="16" />
+                  <line x1="16" y1="16" x2="16" y2="16" />
+                </svg>
+                <span>AI Assistant</span>
               </button>
             </li>
           </ul>
@@ -2813,6 +3247,8 @@ function App() {
                   </div>
                 )}
               </div>
+            ) : currentView === 'ai_assistant' ? (
+              renderAIAssistant()
             ) : (
               <div className="section-card">
                 <div className="section-header" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '20px' }}>
@@ -3560,6 +3996,8 @@ function App() {
                 </div>
               </form>
             </div>
+          ) : currentView === 'ai_assistant' ? (
+            renderAIAssistant()
           ) : (
             /* Documents View */
             <div className="section-card">

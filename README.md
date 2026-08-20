@@ -1,1 +1,0 @@
-# industrial_document_management

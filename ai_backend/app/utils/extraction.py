@@ -34,6 +34,8 @@ def extract_text_from_pdf(file_path: str) -> list[dict]:
             logger.error(f"Fallback plain text extraction failed: {fallback_e}")
         raise e
 
+
+
 def extract_text_from_docx(file_path: str) -> list[dict]:
     """
     Extracts text from a DOCX file.

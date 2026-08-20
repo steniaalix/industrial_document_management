@@ -1829,24 +1829,6 @@ function App() {
               {isLoggingIn ? 'Logging in...' : 'Sign In'}
             </button>
           </form>
-
-          <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-color)', paddingTop: '20px', fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-            <p style={{ marginBottom: '8px', fontWeight: '600', color: 'var(--text-secondary)' }}>DEMO ACCOUNTS</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
-              <div>
-                <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>Admin: </span>
-                <span>alice@example.com / adminpass</span>
-              </div>
-              <div>
-                <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>Employee: </span>
-                <span>john@indudocs.com / employee123</span>
-              </div>
-              <div>
-                <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>Reviewer: </span>
-                <span>bob@indudocs.com / reviewer123</span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     );
